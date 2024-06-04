@@ -16,8 +16,6 @@
 
 uint8_t current_step = 0;
 
-// turn off led strip
-
 void step(bool forward) {
     if (forward) {
         switch (current_step) {
