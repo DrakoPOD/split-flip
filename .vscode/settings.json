@@ -1,0 +1,9 @@
+{
+  "files.associations": {
+    "*._js": "javascript",
+    "*.vue": "vue",
+    "step_driver.h": "c",
+    "led_strip_rmt.h": "c",
+    "gpio.h": "c"
+  }
+}

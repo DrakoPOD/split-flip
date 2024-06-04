@@ -9,116 +9,93 @@
 #include "led_strip.h"
 #include "led_strip_types.h"
 
-#define RGB_LED 48
-#define MAX_LED 1
+#define DRIVER_PIN1 4
+#define DRIVER_PIN2 5
+#define DRIVER_PIN3 6
+#define DRIVER_PIN4 7
 
-static const char *TAG = "flip-flap";
+uint8_t current_step = 0;
 
-led_strip_handle_t led_strip;
+// turn off led strip
 
-led_strip_config_t strip_config = {
-    .strip_gpio_num = RGB_LED,
-    .max_leds = MAX_LED,
-    .led_pixel_format = LED_PIXEL_FORMAT_GRB,
-    .led_model = LED_MODEL_WS2812,
-    .flags =
-        {
-            .invert_out = 0,
-        },
-};
-
-led_strip_rmt_config_t rmt_config = {
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    .rmt_channel = 0,
-#else
-    .clk_src = RMT_CLK_SRC_DEFAULT,
-    .resolution_hz = 10 * 1000 * 1000,
-    .flags.with_dma = false,
-#endif
-};
-
-struct rgb {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-};
-
-struct rgb hue = {255, 0, 0};
-
-char current_color = 'r';
-bool maxed = false;
-
-void change_color(void *pvParameter) {
-    while (1) {
-        switch (current_color) {
-            case 'r':
-                if (hue.g < 255 && !maxed) {
-                    hue.g++;
-                } else {
-                    maxed = true;
-                    hue.r--;
-                    if (hue.r == 0) {
-                        current_color = 'g';
-                        maxed = false;
-                    }
-                }
+void step(bool forward) {
+    if (forward) {
+        switch (current_step) {
+            case 0:
+                gpio_set_level(DRIVER_PIN1, true);
+                gpio_set_level(DRIVER_PIN2, false);
+                gpio_set_level(DRIVER_PIN3, false);
+                gpio_set_level(DRIVER_PIN4, false);
                 break;
-            case 'g':
-                if (hue.b < 255 && !maxed) {
-                    hue.b++;
-                } else {
-                    maxed = true;
-                    hue.g--;
-                    if (hue.g == 0) {
-                        current_color = 'b';
-                        maxed = false;
-                    }
-                }
+            case 1:
+                gpio_set_level(DRIVER_PIN1, false);
+                gpio_set_level(DRIVER_PIN2, true);
+                gpio_set_level(DRIVER_PIN3, false);
+                gpio_set_level(DRIVER_PIN4, false);
                 break;
-            case 'b':
-                if (hue.r < 255 && !maxed) {
-                    hue.r++;
-                } else {
-                    maxed = true;
-                    hue.b--;
-                    if (hue.b == 0) {
-                        current_color = 'r';
-                        maxed = false;
-                    }
-                }
+            case 2:
+                gpio_set_level(DRIVER_PIN1, false);
+                gpio_set_level(DRIVER_PIN2, false);
+                gpio_set_level(DRIVER_PIN3, true);
+                gpio_set_level(DRIVER_PIN4, false);
+                break;
+            case 3:
+                gpio_set_level(DRIVER_PIN1, false);
+                gpio_set_level(DRIVER_PIN2, false);
+                gpio_set_level(DRIVER_PIN3, false);
+                gpio_set_level(DRIVER_PIN4, true);
                 break;
         }
-
-        led_strip_set_pixel(led_strip, 0, hue.r, hue.g, hue.b);
-        led_strip_refresh(led_strip);
-        vTaskDelay(pdMS_TO_TICKS(10));
+    } else {
+        switch (current_step) {
+            case 0:
+                gpio_set_level(DRIVER_PIN1, false);
+                gpio_set_level(DRIVER_PIN2, false);
+                gpio_set_level(DRIVER_PIN3, false);
+                gpio_set_level(DRIVER_PIN4, true);
+                break;
+            case 1:
+                gpio_set_level(DRIVER_PIN1, false);
+                gpio_set_level(DRIVER_PIN2, false);
+                gpio_set_level(DRIVER_PIN3, true);
+                gpio_set_level(DRIVER_PIN4, false);
+                break;
+            case 2:
+                gpio_set_level(DRIVER_PIN1, false);
+                gpio_set_level(DRIVER_PIN2, true);
+                gpio_set_level(DRIVER_PIN3, false);
+                gpio_set_level(DRIVER_PIN4, false);
+                break;
+            case 3:
+                gpio_set_level(DRIVER_PIN1, true);
+                gpio_set_level(DRIVER_PIN2, false);
+                gpio_set_level(DRIVER_PIN3, false);
+                gpio_set_level(DRIVER_PIN4, false);
+                break;
+        }
     }
-}
 
-void blink_rgb(void *pvParameter) {
-    ESP_LOGI(TAG, "Blinking RGB");
-    while (1) {
-        ESP_LOGI(TAG, "Blinking Green");
-        ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 0, 255, 0));
-        ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-        vTaskDelay(pdMS_TO_TICKS(1000));
-
-        ESP_LOGI(TAG, "Blinking Blue");
-        ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 0, 0, 255));
-        ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-        vTaskDelay(pdMS_TO_TICKS(1000));
-
-        ESP_LOGI(TAG, "Blinking Red");
-        ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, 0, 255, 0, 0));
-        ESP_ERROR_CHECK(led_strip_refresh(led_strip));
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
+    current_step = (current_step + 1) % 4;
 }
 
 void app_main(void) {
-    ESP_LOGI(TAG, "Initializing LED strip");
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+    esp_rom_gpio_pad_select_gpio(DRIVER_PIN1);
+    esp_rom_gpio_pad_select_gpio(DRIVER_PIN2);
+    esp_rom_gpio_pad_select_gpio(DRIVER_PIN3);
+    esp_rom_gpio_pad_select_gpio(DRIVER_PIN4);
 
-    // xTaskCreate(&blink_rgb, "blink_rgb", 2048, NULL, 5, NULL);
-    xTaskCreate(&change_color, "change_color", 2048, NULL, 5, NULL);
+    gpio_set_direction(DRIVER_PIN1, GPIO_MODE_OUTPUT);
+    gpio_set_direction(DRIVER_PIN2, GPIO_MODE_OUTPUT);
+    gpio_set_direction(DRIVER_PIN3, GPIO_MODE_OUTPUT);
+    gpio_set_direction(DRIVER_PIN4, GPIO_MODE_OUTPUT);
+
+    gpio_set_level(DRIVER_PIN1, true);
+    gpio_set_level(DRIVER_PIN2, false);
+    gpio_set_level(DRIVER_PIN3, false);
+    gpio_set_level(DRIVER_PIN4, false);
+
+    while (true) {
+        step(true);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
 }
